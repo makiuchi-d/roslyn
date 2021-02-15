@@ -418,6 +418,7 @@ public class Program1
             Assert.Equal(1, comp.GetDiagnostics().Count());
         }
 
+//ここにかく
         [Fact]
         public void MethodGroupToDelegate04()
         {
@@ -433,13 +434,13 @@ public class Program1
 
     void T()
     {
-        D(Y); // wrong parameter type
+        D(Y); // resolved to D(MyAction<long>)
     }
 }
 ";
             var tree = Parse(text);
             var comp = CreateCompilation(tree);
-            Assert.Equal(1, comp.GetDiagnostics().Count());
+            comp.VerifyDiagnostics();
         }
 
         [Fact]

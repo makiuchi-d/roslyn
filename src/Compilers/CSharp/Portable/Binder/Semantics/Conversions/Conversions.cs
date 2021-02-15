@@ -58,6 +58,42 @@ namespace Microsoft.CodeAnalysis.CSharp
             var conversion = (resolution.IsEmpty || resolution.HasAnyErrors) ?
                 Conversion.NoConversion :
                 ToConversion(resolution.OverloadResolutionResult, resolution.MethodGroup, ((NamedTypeSymbol)destination).DelegateInvokeMethod.ParameterCount);
+
+            var dParams = destination.DelegateParameters();
+            if (conversion.Exists && dParams.Length > 0)
+            {
+                // Check the delegate compatibility (section 15.2).
+                //  * Every value parameter (no-ref or non-out) from the delegate type has an identity conversion or
+                //    implicit reference conversion to the corresponding parameter
+                //  * Every ref or out parameter from the delegate type has an identity conversion to the corresponding
+                //    parameter
+                // The `conversion` was checked to satisfy the function applicability, but the delegate compatibility
+                // was not checked yet.
+
+                var mParams = conversion.MethodSymbol.Parameters;
+                var hasThis = resolution.IsExtensionMethodGroup ? 1 : 0;
+
+                for (var i = 0; i < dParams.Length; ++i)
+                {
+                    var dParam = dParams[i];
+
+                    // To satisfy the function applicability, the ref or out parameter has the same modifier and has an
+                    // identity conversion to the corresponding parameter.
+                    if (dParam.RefKind == RefKind.Ref || dParam.RefKind == RefKind.Out)
+                    {
+                        continue;
+                    }
+
+                    var dType = dParam.Type;
+                    var mType = (Symbols.PublicModel.TypeSymbol)mParams[i + hasThis].Type;
+                    if (!HasIdentityOrImplicitReferenceConversion(dType, mType.UnderlyingTypeSymbol, ref useSiteDiagnostics))
+                    {
+                        conversion = Conversion.NoConversion;
+                        break;
+                    }
+                }
+            }
+
             resolution.Free();
             return conversion;
         }
